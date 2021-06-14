@@ -5,7 +5,6 @@ import retrofit2.Call
 import retrofit2.http.GET
 
 interface HouseService {
-
-    @GET("/v3/42434f93-f376-4644-9aad-272127f4fd42")
+    @GET("/v3/787091fb-55ac-41d0-8b69-0d93ddd60424")
     fun getHouseList(): Call<HouseDto>
 }

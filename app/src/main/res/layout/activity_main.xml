@@ -8,7 +8,23 @@
     <com.naver.maps.map.MapView
         android:id="@+id/mapView"
         android:layout_width="match_parent"
+        android:layout_marginBottom="80dp"
         android:layout_height="match_parent" />
+
+    <androidx.viewpager2.widget.ViewPager2
+        android:id="@+id/myViewPager"
+        android:layout_width="match_parent"
+        android:layout_height="100dp"
+        android:layout_gravity="bottom"
+        android:layout_marginBottom="120dp"
+        android:orientation="horizontal" />
+
+    <com.naver.maps.map.widget.LocationButtonView
+        android:id="@+id/currentLocationButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_margin="12dp"
+        android:layout_gravity="top|start"/>
 
     <include layout="@layout/bottom_sheet" />
 

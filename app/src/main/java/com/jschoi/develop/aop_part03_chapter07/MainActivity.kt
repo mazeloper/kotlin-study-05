@@ -1,9 +1,16 @@
 package com.jschoi.develop.aop_part03_chapter07
 
+import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
 import android.util.Log
+import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import androidx.viewpager2.widget.ViewPager2
+import com.jschoi.develop.aop_part03_chapter07.adapter.HouseListAdapter
+import com.jschoi.develop.aop_part03_chapter07.adapter.HouseViewPagerAdapter
 import com.jschoi.develop.aop_part03_chapter07.dto.HouseDto
 import com.jschoi.develop.aop_part03_chapter07.model.HouseModel
 import com.jschoi.develop.aop_part03_chapter07.net.HouseService
@@ -11,8 +18,10 @@ import com.jschoi.develop.aop_part03_chapter07.net.RetrofitClient
 import com.naver.maps.geometry.LatLng
 import com.naver.maps.map.*
 import com.naver.maps.map.overlay.Marker
+import com.naver.maps.map.overlay.Overlay
 import com.naver.maps.map.util.FusedLocationSource
 import com.naver.maps.map.util.MarkerIcons
+import com.naver.maps.map.widget.LocationButtonView
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
@@ -23,7 +32,7 @@ import retrofit2.Retrofit
  *
  * https://navermaps.github.io/android-map-sdk/guide-ko/
  */
-class MainActivity : AppCompatActivity(), OnMapReadyCallback {
+class MainActivity : AppCompatActivity(), OnMapReadyCallback, Overlay.OnClickListener {
 
     companion object {
         private const val LOCATION_PERMISSION_REQUEST_CODE = 1000
@@ -35,12 +44,52 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     private val mapView: MapView by lazy {
         findViewById(R.id.mapView)
     }
+    private val myViewPager: ViewPager2 by lazy {
+        findViewById(R.id.myViewPager)
+    }
+    private val myRecyclerView: RecyclerView by lazy {
+        findViewById(R.id.myRecyclerView)
+    }
+    private val currentLocationButton: LocationButtonView by lazy {
+        findViewById(R.id.currentLocationButton)
+    }
+    private val bottomSheetTitleTextView: TextView by lazy {
+        findViewById(R.id.bottomSheetTitleTextView)
+    }
+    private val viewPagerAdapter = HouseViewPagerAdapter(itemClicked = {
+        val intent = Intent().apply {
+            action = Intent.ACTION_SEND
+            putExtra(
+                Intent.EXTRA_TEXT,
+                "[지금 이 가격에 예약하세요!!] ${it.title} ${it.price} 사진보기 :${it.imageUrl}"
+            )
+            type = "text/plain"
+        }
+        startActivity(Intent.createChooser(intent, null))
+    })
+    private val recyclerAdapter = HouseListAdapter()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
         mRetofit = RetrofitClient.getInstance()
+        // ViewPager
+        myViewPager.adapter = viewPagerAdapter
+        myViewPager.registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
+            override fun onPageSelected(position: Int) {
+                super.onPageSelected(position)
+                val selectedHouseModel = viewPagerAdapter.currentList[position]
+                val cameraUpdate =
+                    CameraUpdate.scrollTo(LatLng(selectedHouseModel.lat, selectedHouseModel.lng))
+                        .animate(CameraAnimation.Easing)
+                naverMap.moveCamera(cameraUpdate)
+            }
+        })
+
+        // ViewPager
+        myRecyclerView.layoutManager = LinearLayoutManager(this)
+        myRecyclerView.adapter = recyclerAdapter
         // 프래그먼트 방식이 아닌 맵뷰방식인 경우 생명주기 연결 필요
         mapView.onCreate(savedInstanceState)
         mapView.getMapAsync(this)
@@ -62,18 +111,14 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
 
         // 현위치 - permission(권한필요)
         val uiSetting = naverMap.uiSettings
-        uiSetting.isLocationButtonEnabled = true
+        // uiSetting.isLocationButtonEnabled = true
+        uiSetting.isLocationButtonEnabled = false
+        // Custom Location Button
+        currentLocationButton.map = naverMap
 
         // 구글 라이브러리를 통해 쉽게 권한팝업 사용
         locationSource = FusedLocationSource(this@MainActivity, LOCATION_PERMISSION_REQUEST_CODE)
         naverMap.locationSource = locationSource
-
-        // 마커
-        // val marker = Marker()
-        // marker.position = LatLng(37.531825, 126.730019)
-        // marker.map = naverMap
-        // marker.icon = MarkerIcons.BLACK
-        // marker.iconTintColor = Color.RED
 
         getHouseListFromAPI()
     }
@@ -86,6 +131,10 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
 
                     Log.d("TAG", ">>>>> BODY : ${response.body().toString()}")
                     response.body()?.let { data ->
+                        viewPagerAdapter.submitList(data.items)
+                        recyclerAdapter.submitList(data.items)
+
+                        bottomSheetTitleTextView.text = "${data.items.size}개의 숙소"
                         updateMarker(data.items)
                     }
                 }
@@ -98,12 +147,12 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
     private fun updateMarker(house: List<HouseModel>) {
-        house.forEach { house ->
+        house.forEach {
             val marker = Marker()
-            marker.position = LatLng(house.lat, house.lng)
-            // TODO onClickListener
+            marker.position = LatLng(it.lat, it.lng)
+            marker.onClickListener = this
             marker.map = naverMap
-            marker.tag = house.id
+            marker.tag = it.id
             marker.icon = MarkerIcons.BLACK
             marker.iconTintColor = Color.RED
         }
@@ -159,5 +208,19 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     override fun onLowMemory() {
         super.onLowMemory()
         mapView.onLowMemory()
+    }
+
+    override fun onClick(overly: Overlay): Boolean {
+        if (overly is Marker) {
+            val selectedModel = viewPagerAdapter.currentList.firstOrNull {
+                it.id == overly.tag
+            }
+
+            selectedModel?.let {
+                val position = viewPagerAdapter.currentList.indexOf(it)
+                myViewPager.currentItem = position
+            }
+        }
+        return true
     }
 }
