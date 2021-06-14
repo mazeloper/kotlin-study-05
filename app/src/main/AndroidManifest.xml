@@ -3,6 +3,7 @@
     package="com.jschoi.develop.aop_part03_chapter07">
 
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-permission android:name="android.permission.INTERNET"/>
 
     <application
         android:allowBackup="true"

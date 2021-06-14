@@ -2,12 +2,21 @@ package com.jschoi.develop.aop_part03_chapter07
 
 import android.graphics.Color
 import android.os.Bundle
+import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
+import com.jschoi.develop.aop_part03_chapter07.dto.HouseDto
+import com.jschoi.develop.aop_part03_chapter07.model.HouseModel
+import com.jschoi.develop.aop_part03_chapter07.net.HouseService
+import com.jschoi.develop.aop_part03_chapter07.net.RetrofitClient
 import com.naver.maps.geometry.LatLng
 import com.naver.maps.map.*
 import com.naver.maps.map.overlay.Marker
 import com.naver.maps.map.util.FusedLocationSource
 import com.naver.maps.map.util.MarkerIcons
+import retrofit2.Call
+import retrofit2.Callback
+import retrofit2.Response
+import retrofit2.Retrofit
 
 /**
  * Simple Airbnb App
@@ -20,6 +29,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         private const val LOCATION_PERMISSION_REQUEST_CODE = 1000
     }
 
+    private lateinit var mRetofit: Retrofit
     private lateinit var naverMap: NaverMap
     private lateinit var locationSource: FusedLocationSource
     private val mapView: MapView by lazy {
@@ -29,6 +39,8 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        mRetofit = RetrofitClient.getInstance()
         // 프래그먼트 방식이 아닌 맵뷰방식인 경우 생명주기 연결 필요
         mapView.onCreate(savedInstanceState)
         mapView.getMapAsync(this)
@@ -57,14 +69,51 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         naverMap.locationSource = locationSource
 
         // 마커
-        val marker = Marker()
-        marker.position = LatLng(37.531825, 126.730019)
-        marker.map = naverMap
-        marker.icon = MarkerIcons.BLACK
-        marker.iconTintColor = Color.RED
+        // val marker = Marker()
+        // marker.position = LatLng(37.531825, 126.730019)
+        // marker.map = naverMap
+        // marker.icon = MarkerIcons.BLACK
+        // marker.iconTintColor = Color.RED
+
+        getHouseListFromAPI()
     }
 
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+    private fun getHouseListFromAPI() {
+        mRetofit.create(HouseService::class.java).getHouseList().also {
+            it.enqueue(object : Callback<HouseDto> {
+                override fun onResponse(call: Call<HouseDto>, response: Response<HouseDto>) {
+                    if (response.isSuccessful.not() || response.body() == null) return
+
+                    Log.d("TAG", ">>>>> BODY : ${response.body().toString()}")
+                    response.body()?.let { data ->
+                        updateMarker(data.items)
+                    }
+                }
+
+                override fun onFailure(call: Call<HouseDto>, t: Throwable) {
+                    Log.e("TAG", ">>>> ERROR : ${t.message}")
+                }
+            })
+        }
+    }
+
+    private fun updateMarker(house: List<HouseModel>) {
+        house.forEach { house ->
+            val marker = Marker()
+            marker.position = LatLng(house.lat, house.lng)
+            // TODO onClickListener
+            marker.map = naverMap
+            marker.tag = house.id
+            marker.icon = MarkerIcons.BLACK
+            marker.iconTintColor = Color.RED
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode != LOCATION_PERMISSION_REQUEST_CODE) {
             return
